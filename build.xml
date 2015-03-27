@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<!-- ***** BEGIN LICENSE BLOCK *****
+  ** 
+  ** Copyright (C) 2012 OpsResearch LLC (a Delaware company) all rights reserved.
+  ** 
+  ** ***** END LICENSE BLOCK ***** -->
+
+<project basedir="." default="build" name="orobjects">
+
+    <target name="clean">
+        <delete dir="bin"/>
+        <delete file="orobjects.jar"/>
+    </target>
+
+   <target name="build">
+        <javac debug="false" destdir="bin">
+            <src path="src"/>
+        </javac>
+    </target>
+
+   <target name="jar">
+        <jar destfile="orobjects.jar">
+            <fileset dir="bin"/>
+		</jar>
+   </target>
+
+</project>
