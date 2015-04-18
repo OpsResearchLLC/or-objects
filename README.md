@@ -1,2 +1,2 @@
 # or-objects
-Java library of algorithms for Operations Research
+Java library for Operations Research
