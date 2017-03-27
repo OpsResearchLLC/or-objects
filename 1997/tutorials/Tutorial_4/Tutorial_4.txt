@@ -1,0 +1,365 @@
+===================
+File: Customer.java
+===================
+
+class Customer
+extends drasys.or.geom.geo.Point
+{
+    String key;
+    boolean isSelected;
+    drasys.or.geom.rect2.Point screenCoord;
+
+    Customer(String id, double longitude, double latitude, int x, int y)
+    {
+        super(longitude, latitude);
+        key = id;
+        isSelected = false;
+        screenCoord = new drasys.or.geom.rect2.Point(x,y);
+    }
+
+}
+
+=====================
+File: Tutorial_4.java
+=====================
+
+import java.awt.*;
+import java.applet.*;
+import java.util.*;
+
+import drasys.or.*;
+import drasys.or.graph.*;
+import drasys.or.graph.tsp.*;
+import drasys.or.geom.*;
+import java.awt.*;
+
+
+public class Tutorial_4 extends Applet {
+
+	void Applet1_MouseUp(Event event) {
+		mouseClick(event.x, event.y);
+	}
+
+	void showButton_Clicked(Event event) {
+        showTour();
+    	}
+
+	void clearButton_Clicked(Event event) {
+        clear();
+	}
+
+	void tourChoice_Action(Event event) {
+		tourType = tourChoice.getSelectedItem();
+	}
+
+	void improveChoice_Action(Event event) {
+		improveType = improveChoice.getSelectedItem();
+        newAlgorithm(constructType, improveType);
+	}
+
+	void constructChoice_Action(Event event) {
+		constructType = constructChoice.getSelectedItem();
+        newAlgorithm(constructType, improveType);
+	}
+
+
+	public void init() {
+		super.init();
+
+		//{{INIT_CONTROLS
+		setLayout(null);
+		setBackground(java.awt.Color.lightGray);
+		setForeground(java.awt.Color.black);
+		setSize(249,310);
+		showButton.setLabel("Show Tour");
+		add(showButton);
+		showButton.setBounds(120,276,120,24);
+		clearButton.setLabel("Clear");
+		add(clearButton);
+		clearButton.setBounds(24,276,72,24);
+		label3.setText("Tour");
+		label3.setAlignment(java.awt.Label.CENTER);
+		add(label3);
+		label3.setBounds(180,216,60,24);
+		label2.setText("Improve");
+		label2.setAlignment(java.awt.Label.CENTER);
+		add(label2);
+		label2.setBounds(120,216,60,24);
+		label1.setText("Construct");
+		label1.setAlignment(java.awt.Label.CENTER);
+		add(label1);
+		label1.setBounds(12,216,108,24);
+		tourChoice.addItem("Closed");
+		tourChoice.addItem("Depot");
+		tourChoice.addItem("Open");
+		try {
+			tourChoice.select(0);
+		}
+		catch (IllegalArgumentException e) { }
+		add(tourChoice);
+		tourChoice.setBounds(180,240,60,25);
+		improveChoice.addItem("2-Opt");
+		improveChoice.addItem("3-Opt");
+		improveChoice.addItem("US-5");
+		improveChoice.addItem("None");
+		try {
+			improveChoice.select(0);
+		}
+		catch (IllegalArgumentException e) { }
+		add(improveChoice);
+		improveChoice.setBounds(120,240,60,25);
+		constructChoice.addItem("Nearest Add");
+		constructChoice.addItem("Nearest Ins");
+		constructChoice.addItem("Farthest Ins");
+		constructChoice.addItem("Cheapest Ins");
+		constructChoice.addItem("GENI-7");
+		constructChoice.addItem("Enumeration");
+		try {
+			constructChoice.select(0);
+		}
+		catch (IllegalArgumentException e) { }
+		add(constructChoice);
+		constructChoice.setBounds(12,240,108,25);
+		messageLabel.setAlignment(java.awt.Label.CENTER);
+		add(messageLabel);
+		messageLabel.setBounds(12,192,228,12);
+		//}}
+
+		initTutorial();
+	}
+
+	public boolean handleEvent(Event event) {
+		if (event.target == constructChoice && event.id == Event.ACTION_EVENT) {
+			constructChoice_Action(event);
+			return true;
+		}
+		if (event.target == improveChoice && event.id == Event.ACTION_EVENT) {
+			improveChoice_Action(event);
+			return true;
+		}
+		if (event.target == tourChoice && event.id == Event.ACTION_EVENT) {
+			tourChoice_Action(event);
+			return true;
+		}
+		if (event.target == clearButton && event.id == Event.ACTION_EVENT) {
+			clearButton_Clicked(event);
+			return true;
+		}
+		if (event.target == showButton && event.id == Event.ACTION_EVENT) {
+			showButton_Clicked(event);
+			return true;
+		}
+		if (event.target == this && event.id == Event.MOUSE_UP) {
+			Applet1_MouseUp(event);
+			return true;
+		}
+		return super.handleEvent(event);
+	}
+
+	//{{DECLARE_CONTROLS
+	java.awt.Button showButton = new java.awt.Button();
+	java.awt.Button clearButton = new java.awt.Button();
+	java.awt.Label label3 = new java.awt.Label();
+	java.awt.Label label2 = new java.awt.Label();
+	java.awt.Label label1 = new java.awt.Label();
+	java.awt.Choice tourChoice = new java.awt.Choice();
+	java.awt.Choice improveChoice = new java.awt.Choice();
+	java.awt.Choice constructChoice = new java.awt.Choice();
+	java.awt.Label messageLabel = new java.awt.Label();
+	//}}
+
+    public static final Customer[] customers = {
+        new Customer("Depot", 161.325, -6.355,  132,  135),
+        new Customer("A", 160.215, -5.155,  21,  15),
+        new Customer("B", 161.015, -5.195, 101,  19),
+        new Customer("C", 162.105, -5.225, 210,  22),
+        new Customer("D", 160.565, -5.465,  56,  46),
+        new Customer("E", 161.375, -5.465, 137,  46),
+        new Customer("F", 161.025, -5.585, 102,  58),
+        new Customer("H", 160.205, -5.845,  20,  84),
+        new Customer("I", 161.035, -5.975, 103,  97),
+        new Customer("J", 162.005, -5.835, 200,  83),
+        new Customer("K", 160.325, -6.455,  32, 145),
+        new Customer("L", 162.195, -6.505, 219, 150)
+    };
+	
+	
+    Image image;
+    Composite tsp;
+    PointIndexI index;
+    String tourType;
+    String improveType;
+    String constructType;
+   
+    public void 
+    initTutorial()
+    {
+        image = getImage(getDocumentBase(), "Tutorial_4.gif");
+        //prepareImage(image, this);
+        tourType = "Closed";
+        improveType = "2-Opt";
+        constructType = "Nearest Add";
+	    messageLabel.setText("Click customers to select.");
+        tsp = new Composite(new NearestAddition(), new TwoOpt());
+        customers[0].isSelected = true;
+	    index = new KDTree();
+        for(int i=1; i<customers.length; i++){
+            index.put(customers[i].screenCoord,customers[i]);
+        }
+    }
+    
+    public void
+    newAlgorithm(String constructStr, String improveStr)
+    {
+        ConstructI construct = null;
+        if(constructStr.equals("Nearest Add")) construct = new NearestAddition();
+        else if(constructStr.equals("Nearest Ins")) construct = new NearestInsertion();
+        else if(constructStr.equals("Farthest Ins")) construct = new FarthestInsertion();
+        else if(constructStr.equals("Cheapest Ins")) construct = new CheapestInsertion();
+        else if(constructStr.equals("GENI-7")) construct = new Geni(7);
+        else if(constructStr.equals("Enumeration")) construct = new FullEnumeration();
+        else System.out.println("Can't find: "+constructStr);
+        
+        ImproveI improve = null;
+        if(improveStr.equals("2-Opt")) improve = new TwoOpt();
+        else if(improveStr.equals("3-Opt")) improve = new ThreeOpt();
+        else if(improveStr.equals("US-5")) improve = new Us(5);
+        else if(improveStr.equals("None")) improve = null;
+        else System.out.println("Can't find: "+improveStr);
+        
+        tsp = new Composite(construct, improve);
+    }
+    
+    public void
+    clear()
+    {
+	    for(int i=1; i<customers.length; i++) 
+	        customers[i].isSelected = false;
+	    update(getGraphics());
+	    messageLabel.setText("Click customers to select.");
+	}
+	
+	public void
+	buildTour(GraphI graph)
+	throws TourNotFoundException, VertexNotFoundException
+	{
+	    tsp.setGraph(new MatrixGraph(graph, null));
+	    if(tourType.equals("Closed")) 
+	        tsp.constructClosedTour();
+	    else if(tourType.equals("Open")) 
+	        tsp.constructOpenTour();
+	    else if(tourType.equals("Depot")){
+	        tsp.constructOpenTourFrom("Depot");
+	    }
+	}
+    
+    public int
+    sizeOfSelected()
+    {
+        int size = 0;
+        for(int i=1; i<customers.length; i++)
+            if(customers[i].isSelected) size++;
+        return size;
+    }
+    
+    public void
+    showTour()
+    {
+        messageLabel.setText("-- Thinking --");
+        update(this.getGraphics());
+
+        if(sizeOfSelected() < 1){
+	        messageLabel.setText("No customers are selected.");
+            return;
+        }
+
+        if(constructType.equals("Enumeration")){
+            int maxSize = tourType.equals("Open") ? 8 : 9;
+            if(sizeOfSelected() > maxSize){
+    	        messageLabel.setText("Too many customers for enumeration.");
+                return;
+            }
+        }
+        
+        try{
+            PointGraph graph = new PointGraph();
+    	    for(int i=0; i<customers.length; i++){
+    	        Customer Customer = customers[i];
+    	        if(Customer.isSelected)
+    	            graph.addVertex(Customer.key, Customer);
+    	    }
+    	    buildTour(graph);
+    	    paintTour();
+    	    showDistance();
+	    } 
+	    catch(DuplicateVertexException e){}
+	    catch(TourNotFoundException e){}
+	    catch(VertexNotFoundException e){}
+    }
+    
+    public void
+    showDistance()
+    {
+	    double kilo = tsp.getCost();
+	    String dist = String.valueOf(kilo);
+	    dist = dist.substring(0,dist.indexOf('.')+2);
+	    messageLabel.setText("Distance = " + dist + " kilometers");
+    }
+
+	public void
+	mouseClick(int x, int y)
+	{
+	    PointI clickPoint = new drasys.or.geom.rect2.Point(x,y);
+	    PairI pair = index.getNearestNeighborTo(clickPoint);
+	    Customer Customer = (Customer)pair.getSecond();
+	    Customer.isSelected = Customer.isSelected ? false : true;
+	    paintcustomers(getGraphics());	    
+	}
+    
+    public void
+    paint(Graphics g)
+    {
+        if(image != null) g.drawImage(image,0,0,this);
+        paintcustomers(g);
+    }
+
+    public void
+    paintTour()
+    {
+        Graphics g = this.getGraphics();
+        g.setColor(Color.blue);
+        
+        Enumeration e=tsp.getTour().elements();
+        e.nextElement(); // Skip Vertex
+        while(e.hasMoreElements()){
+            EdgeI edge = (EdgeI)e.nextElement();
+            Customer Customer1 = (Customer)edge.getToVertex().getValue();
+            Customer Customer2 = (Customer)edge.getFromVertex().getValue();
+            int x1 = (int)Customer1.screenCoord.x();
+            int y1 = (int)Customer1.screenCoord.y();
+            int x2 = (int)Customer2.screenCoord.x();
+            int y2 = (int)Customer2.screenCoord.y();
+            g.drawLine(x1, y1, x2, y2);
+            e.nextElement(); // Skip Vertex
+        }
+    }
+    public void
+    paintcustomers(Graphics g)
+    {
+        for(int i=1; i<customers.length; i++){
+            Customer Customer = customers[i];
+            g.setColor(Customer.isSelected ? Color.red : Color.black);
+            int x = (int)Customer.screenCoord.x();
+            int y = (int)Customer.screenCoord.y();
+            g.fillOval(x-2, y-2, 4, 4);
+        }
+    }
+
+    public void
+    update(Graphics g)
+    {
+        paint(g);
+    }
+        
+
+}

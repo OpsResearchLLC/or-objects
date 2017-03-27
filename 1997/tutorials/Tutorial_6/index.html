@@ -1,0 +1,413 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+<meta http-equiv="Refresh" content="300; http://www.amazon.com/exec/obidos/external-search/103-3314802-4933448?keyword=+operations+research&tag=opsresearchcomA">
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="Author" content="DRA Systems">
+   <meta name="GENERATOR" content="Mozilla/4.61 [en] (WinNT; I) [Netscape]">
+   <title>OR-Objects Tutorial 6</title>
+</head>
+<body background="../../../Images/paper.gif" nosave>
+&nbsp;
+<table CELLSPACING=4 >
+<tr>
+<td><a href="http://OpsResearch.com" target="_parent">Home</a></td>
+
+<td><a href="../../index.html">OR-Objects</a></td>
+
+<td><a href="../index.html">Tutorials</a></td>
+
+<td><a href="../Tutorial_5/index.html">Prev</a></td>
+
+<td><a href="../Tutorial_7/index.html">Next</a></td>
+</tr>
+</table>
+
+<center>
+<h1>
+Tutorial 6 - Vehicle Routing Problem (VRP)</h1></center>
+
+<center>
+<p><br><applet ARCHIVE="../or.jar" CODE="Tutorial_6.class" WIDTH=481 HEIGHT=302></applet></center>
+
+<p>In this tutorial you will extend the problem introduced in <a href="../Tutorial_4/index.html" target="_parent">Tutorial-4</a>.
+The supply service located at the depot now owns a fleet of helicopters.
+The problem is to design delivery routes to serve all customers while minimizing
+the flight distance and not exceeding the load capacity or the range of
+the helicopters. A red dot (<img SRC="red.gif" NOSAVE height=5 width=5>)
+marks a customer demanding a 300 kilogram payload. A yellow (<img SRC="yellow.gif" NOSAVE height=5 width=5>)
+payload weighs 200 kilograms and a green (<img SRC="green.gif" NOSAVE height=5 width=5>)
+weighs 100 kilograms.&nbsp; The black dot (<img SRC="black.gif" NOSAVE height=5 width=5>)
+marks the depot. This tutorial also introduces geometric transform objects
+which are used to convert between the geographic, map and screen coordinate
+systems.
+<p>For simplicity, the material covered in <a href="../Tutorial_4/index.html" target="_parent">Tutorial-4</a>
+and most of the applet details will be skipped. If you would like to see
+all the details then view the <a href="Tutorial_6.txt">complete source</a>.
+<br>
+<hr WIDTH="100%">
+<h2>
+Tutorial 6 - Contents</h2>
+
+<ul>
+<li>
+<a href="#inttialization">Initialization</a></li>
+
+<li>
+Projection</li>
+
+<ul>
+<li>
+<a href="#setProjection">Set Projection</a></li>
+
+<li>
+<a href="#showCoordinates">Show Coordinates</a></li>
+</ul>
+
+<li>
+Customers</li>
+
+<ul>
+<li>
+<a href="#customerClass">Customer Class</a></li>
+
+<li>
+<a href="#newCustomers">New Customers</a></li>
+</ul>
+
+<li>
+Algorithm</li>
+
+<ul>
+<li>
+<a href="#composite">Composite</a></li>
+
+<li>
+<a href="#construction">Construction</a></li>
+
+<li>
+<a href="#improvement">Improvement</a></li>
+</ul>
+
+<li>
+Show</li>
+
+<ul>
+<li>
+<a href="#buildSolution">Build Solution</a></li>
+
+<li>
+<a href="#paintTours">Paint Tours</a></li>
+</ul>
+</ul>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="inttialization"></a>Initialization</h2>
+The method 'initTutorial' initializes the state of the applet before execution
+begins. The method 'newAlgorithm' is called to create the&nbsp; VRP algorithm
+that will be used initially. The variable 'geoRange' is set to the boundary
+of the service area and the two uniform distributions are constructed to
+generate coordinates inside the boundary. The load distribution is constructed
+to generate customer payload demands of 100, 200 and 300 with equal probability.
+The last line sets the initial projection to "Mercator".
+<pre><tt>&nbsp;&nbsp;&nbsp; public void&nbsp;
+&nbsp;&nbsp;&nbsp; initTutorial()
+&nbsp;&nbsp;&nbsp; {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; .
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; .
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="index.html#construction">newAlgorithm</a>(constructType, subalgorithmType, improveType);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; geoRange = new drasys.or.geom.geo.<a href="../../api/drasys/or/geom/geo/Range.html" TARGET="API">Range</a>(160, -6.5, 162, -5);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; lonDist = new <a href="../../api/drasys/or/prob/UniformDistribution.html" TARGET="API">UniformDistribution</a>(geoRange.<a href="../../api/drasys/or/geom/geo/RangeI.html#west()" TARGET="API">west</a>(), geoRange.<a href="../../api/drasys/or/geom/geo/RangeI.html#east()" TARGET="API">east</a>(), 123);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; latDist = new UniformDistribution(geoRange.<a href="../../api/drasys/or/geom/geo/RangeI.html#south()" TARGET="API">south</a>(), geoRange.<a href="../../api/drasys/or/geom/geo/RangeI.html#north()" TARGET="API">north</a>(), 321);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; loadDist = new <a href="../../api/drasys/or/prob/DiscreteUniformDistribution.html" TARGET="API">DiscreteUniformDistribution</a>(100,100,3);&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="#setProjection">setProjection</a>("Mercator");
+&nbsp;&nbsp;&nbsp; }</tt></pre>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="setProjection"></a>Projection - Set Projection</h2>
+The method 'setProjection' sets the map projection used to convert between
+geographic and map coordinates. It also sets the two dimensional transform
+to convert between map and screen coordinates.
+<pre><tt>&nbsp;&nbsp;&nbsp; public void setProjection(String projectionStr)
+&nbsp;&nbsp;&nbsp; {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(projectionStr.equals("Mercator"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; projection = new <a href="../../api/drasys/or/geom/geo/proj/Mercator.html" TARGET="API">Mercator</a>(geoRange);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(projectionStr.equals("Albers"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; projection = new <a href="../../api/drasys/or/geom/geo/proj/Albers.html" TARGET="API">Albers</a>(geoRange);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(projectionStr.equals("Lambert Conic"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; projection = new <a href="../../api/drasys/or/geom/geo/proj/LambertConic.html" TARGET="API">LambertConic</a>(geoRange);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; xyRange = projection.<a href="../../api/drasys/or/geom/geo/proj/ProjectionI.html#forward(drasys.or.geom.geo.PointI)" TARGET="API">forward</a>(geoRange);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/geom/rect2/PointI.html" TARGET="API">PointI</a> xyLowerLeft = projection.forward(geoRange.<a href="../../api/drasys/or/geom/geo/RangeI.html#southwest()" TARGET="API">southwest</a>());
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; PointI xyUpperRight = projection.forward(geoRange.<a href="../../api/drasys/or/geom/geo/RangeI.html#northeast()" TARGET="API">northeast</a>());
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; PointI screenLowerLeft = new <a href="../../api/drasys/or/geom/rect2/Point.html" TARGET="API">Point</a>(10, 150);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; PointI screenUpperRight = new Point(240, 10);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; screenTransform = new <a href="../../api/drasys/or/geom/rect2/Transform.html" TARGET="API">Transform</a>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; xyLowerLeft, xyUpperRight,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; screenLowerLeft, screenUpperRight);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="#newCustomers">newCustomers</a>(sizeOfStops);
+&nbsp;&nbsp;&nbsp; }</tt></pre>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="showCoordinates"></a>Projection - Show Coordinates</h2>
+When the mouse is clicked on the map, the screen coordinates are first
+converted to map coordinates. Then the map coordinates are converted to
+geographic coordinates and displayed in the message area.
+<pre><tt>&nbsp;&nbsp;&nbsp; public void
+&nbsp;&nbsp;&nbsp; mouseClick(int x, int y)
+&nbsp;&nbsp;&nbsp; {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/geom/rect2/PointI.html" TARGET="API">PointI</a> projectedPoint = screenTransform.<a href="../../api/drasys/or/geom/rect2/Transform.html#inverse(drasys.or.geom.rect2.PointI)" TARGET="API">inverse</a>(new <a href="../../api/drasys/or/geom/rect2/Point.html" TARGET="API">Point</a>(x,y));
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; projectedPoint = xyRange.<a href="../../api/drasys/or/geom/rect2/RangeI.html#bound(drasys.or.geom.rect2.PointI)" TARGET="API">bound</a>(projectedPoint);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; drasys.or.geom.geo.PointI <a href="../../api/drasys/or/geom/geo/PointI.html" TARGET="API">geoPoint</a> = projection.<a href="../../api/drasys/or/geom/geo/proj/ProjectionI.html#inverse(drasys.or.geom.rect2.PointI)" TARGET="API">inverse</a>(projectedPoint);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; String lon = (""+(geoPoint.<a href="../../api/drasys/or/geom/geo/PointI.html#longitude()" TARGET="API">longitude</a>()+5.0E-7)).substring(0,10);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; String lat = (""+(geoPoint.<a href="../../api/drasys/or/geom/geo/PointI.html#latitude()" TARGET="API">latitude</a>()-5.0E-7)).substring(0,9);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; messageLabel.setText("Lon,Lat = "+lon+", "+lat);
+&nbsp;&nbsp;&nbsp; }</tt></pre>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="customerClass"></a>Customers - Customer Class</h2>
+The Customer class contains all the information about a customer. Customer
+is a subclass of a <a href="../../api/drasys/or/geom/rect2/Point.html" TARGET="API">two
+dimensional rectangular point</a> that stores the map coordinates of the
+customer and allows it to be used as a vertex value in a <a href="../../api/drasys/or/graph/PointGraph.html" TARGET="API">PointGraph</a>.
+It also implements the <a href="../../api/drasys/or/DoubleI.html" TARGET="API">DoubleI</a>
+interface which causes any vertex that contains it to return 'load' from
+the <a href="../../api/drasys/or/DoubleI.html#doubleValue()" TARGET="API">doubleValue</a>
+method. The <a href="../../api/drasys/or/DoubleI.html#doubleValue()" TARGET="API">doubleValue</a>
+method is the default way that VRP algorithms obtain vertex load values.
+The variable 'screenCoord' is a <a href="../../api/drasys/or/geom/rect2/Point.html" TARGET="API">two
+dimensional rectangular point</a> that stores the screen coordinates used
+to draw the customer.
+<ul>
+<pre><tt>class Customer
+extends <a href="../../api/drasys/or/geom/rect2/Point.html" TARGET="API">Point
+</a>implements <a href="../../api/drasys/or/DoubleI.html" TARGET="API">DoubleI
+</a>{
+&nbsp;&nbsp;&nbsp; double load;
+&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/geom/rect2/PointI.html" TARGET="API">PointI</a> screenPoint;
+
+&nbsp;&nbsp;&nbsp; Customer(double ld, <a href="../../api/drasys/or/geom/rect2/PointI.html" TARGET="API">PointI</a> projectedPt, <a href="../../api/drasys/or/geom/rect2/PointI.html" TARGET="API">PointI</a> screenPt)
+&nbsp;&nbsp;&nbsp; {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; super(projectedPt);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; load = ld;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; screenPoint = screenPt;
+&nbsp;&nbsp;&nbsp; }
+&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; public double <a href="../../api/drasys/or/DoubleI.html#doubleValue()" TARGET="API">doubleValue</a>(){return load;}
+}</tt></pre>
+</ul>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="newCustomers"></a>Customers - New Customers</h2>
+The array of randomly generated customers is constructed in 'newCustomers'.&nbsp;
+Notice the 'customer' array holds the depot in location zero and the depot
+has a key value of "Depot" and a load of zero. Notice that the newly constructed
+<a href="../../api/drasys/or/graph/PointGraph.html" TARGET="API">PointGraph</a>
+is used to initialize a <a href="../../api/drasys/or/graph/MatrixGraph.html" TARGET="API">MatrixGraph</a>
+which is then used later in the algorithm. This is done so that the inter
+point distances will be pre computed and stored in a matrix inside the
+<a href="../../api/drasys/or/graph/MatrixGraph.html" TARGET="API">MatrixGraph</a>
+for efficiency.
+<ul>
+<pre><tt>&nbsp;&nbsp;&nbsp; public void newCustomers(int n)
+&nbsp;&nbsp;&nbsp; {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; customers = new <a href="#customerClass">Customer</a>[n+1];
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/graph/PointGraph.html" TARGET="API">PointGraph</a> pointGraph = new PointGraph();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; drasys.or.geom.geo.<a href="../../api/drasys/or/geom/geo/PointI.html" TARGET="API">PointI</a> geoPoint;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/geom/rect2/PointI.html" TARGET="API">PointI</a> xyPoint, screenPoint;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Object key = "Depot";
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; double load = 0;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; for(int i=0; i&lt;=n;){
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; geoPoint = new drasys.or.geom.geo.<a href="../../api/drasys/or/geom/geo/Point.html" TARGET="API">Point</a>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; lonDist.<a href="../../api/drasys/or/prob/DistributionI.html#getRandomScaler()" TARGET="API">getRandomScaler</a>(),&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; latDist.getRandomScaler());
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; xyPoint = projection.<a href="../../api/drasys/or/geom/geo/proj/ProjectionI.html#forward(drasys.or.geom.geo.PointI)" TARGET="API">forward</a>(geoPoint);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(!xyRange.<a href="../../api/drasys/or/geom/RangeI.html#includes(drasys.or.geom.PointI)" TARGET="API">includes</a>(xyPoint)) continue;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; screenPoint = screenTransform.<a href="../../api/drasys/or/geom/rect2/TransformI.html#forward(drasys.or.geom.rect2.PointI)" TARGET="API">forward</a>(xyPoint);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; customers[i] = new <a href="#customerClass">Customer</a>(load, xyPoint, screenPoint);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; pointGraph.<a href="../../api/drasys/or/graph/PointGraph.html#addVertex(java.lang.Object, java.lang.Object)" TARGET="API">addVertex</a>(key, customers[i]);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; key = new Integer(i);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; load = loadDist.<a href="../../api/drasys/or/prob/DistributionI.html#getRandomScaler()" TARGET="API">getRandomScaler</a>();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; i++;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph = new <a href="../../api/drasys/or/graph/MatrixGraph.html" TARGET="API">MatrixGraph</a>(pointGraph, null);
+&nbsp;&nbsp;&nbsp; }</tt></pre>
+</ul>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="composite"></a>Algorithm - Composite</h2>
+The algorithm used is a composite VRP algorithm. A composite VRP algorithm
+combines a construction algorithm with an improvement algorithm. The construction
+algorithm is used to create an initial solution, then the improvement algorithm
+is used to make the solution better. In OR-Objects, construction VRP algorithms
+implement the <a href="../../api/drasys/or/graph/vrp/ConstructI.html" TARGET="API">ConstructI</a>
+interface and improvement algorithms implement the <a href="../../api/drasys/or/graph/vrp/ImproveI.html" TARGET="API">ImproveI</a>
+interface.
+<p>The <a href="../../api/drasys/or/graph/vrp/Composite.html" TARGET="API">Composite</a>
+class is a generic implementation of a composite VRP algorithm. It is passed
+the construction and improvement algorithms when it is created. If null
+is passed for the improvement algorithm then only the construction algorithm
+will be used.
+<pre><tt>&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/graph/vrp/Composite.html" TARGET="API">Composite</a> vrp;</tt></pre>
+
+<h2>
+
+<hr WIDTH="100%"></h2>
+
+<h2>
+<a NAME="construction"></a>Algorithm - Construction</h2>
+The method 'newAlgorithm' is called to create a new VRP algorithm when
+the parameters change. The string arguments name the algorithms to use.
+This first section of the method creates the chosen VRP construction algorithm
+with an optional TSP sub algorithm. The TSP newAlgorithm is used by VRP
+construction algorithms to reduce the cost of a tour when its expansion
+is restricted by the cost constraint. Notice the construction of the <a href="../../api/drasys/or/graph/vrp/BestOf.html" TARGET="API">BestOf</a>
+VRP algorithm if "Best Of Above" is selected as the construction algorithm.
+The <a href="../../api/drasys/or/graph/vrp/BestOf.html" TARGET="API">BestOf</a>
+object is initialized with a set of VRP algorithms and applies each algorithm
+in turn while retaining the best solution for use.
+<pre><tt>&nbsp;&nbsp;&nbsp; public void
+&nbsp;&nbsp;&nbsp; newAlgorithm(String constructStr, String subalgorithmStr, String improveStr)
+&nbsp;&nbsp;&nbsp; {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; drasys.or.graph.tsp.<a href="../../api/drasys/or/graph/tsp/ImproveI.html" TARGET="API">ImproveI</a> subalgorithm = null;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(subalgorithmStr.equals("None"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; subalgorithm = null;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(subalgorithmStr.equals("2-Opt"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; subalgorithm = new drasys.or.graph.tsp.<a href="../../api/drasys/or/graph/tsp/TwoOpt.html" TARGET="API">TwoOpt</a>();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(subalgorithmStr.equals("3-Opt"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; subalgorithm = new drasys.or.graph.tsp.<a href="../../api/drasys/or/graph/tsp/ThreeOpt.html" TARGET="API">ThreeOpt</a>();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(subalgorithmStr.equals("US-5"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; subalgorithm = new drasys.or.graph.tsp.<a href="../../api/drasys/or/graph/tsp/Us.html" TARGET="API">Us</a>(5);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/graph/vrp/ConstructI.html" TARGET="API">ConstructI</a> construct = null;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(constructStr.equals("Clarke&amp;Wright - savings list"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; construct = new <a href="../../api/drasys/or/graph/vrp/ClarkeWright.html" TARGET="API">ClarkeWright</a>(iterations,strength,subalgorithm);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(constructStr.equals("Gillett&amp;Miller - polar sweep"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; construct = new <a href="../../api/drasys/or/graph/vrp/GillettMiller.html" TARGET="API">GillettMiller</a>(iterations,strength,subalgorithm);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(constructStr.equals("Best Of Above")){
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; BestOf bestOf = new <a href="../../api/drasys/or/graph/vrp/BestOf.html" TARGET="API">BestOf</a>();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; bestOf.addConstruct(new <a href="../../api/drasys/or/graph/vrp/ClarkeWright.html" TARGET="API">ClarkeWright</a>(iterations,strength,subalgorithm));
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; bestOf.addConstruct(new <a href="../../api/drasys/or/graph/vrp/GillettMiller.html" TARGET="API">GillettMiller</a>(iterations,strength,subalgorithm));
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; construct = bestOf;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }</tt></pre>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="improvement"></a>Algorithm - Improvement</h2>
+This second part of 'newAlgorithm' creates the chosen improvement algorithm
+and builds the composite algorithm using the two underlying algorithms.
+<pre><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/graph/vrp/ImproveI.html" TARGET="API">ImproveI</a> improve = null;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(improveStr.equals("None"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; improve = null;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(improveStr.equals("Improve With Tsp: 2-Opt"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; improve = new <a href="../../api/drasys/or/graph/vrp/ImproveWithTSP.html" TARGET="API">ImproveWithTSP</a>(new drasys.or.graph.tsp.<a href="../../api/drasys/or/graph/tsp/TwoOpt.html" TARGET="API">TwoOpt</a>());
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(improveStr.equals("Improve With Tsp: 3-Opt"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; improve = new <a href="../../api/drasys/or/graph/vrp/ImproveWithTSP.html" TARGET="API">ImproveWithTSP</a>(new drasys.or.graph.tsp.<a href="../../api/drasys/or/graph/tsp/ThreeOpt.html" TARGET="API">ThreeOpt</a>());
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(improveStr.equals("Improve With Tsp: US-5"))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; improve = new <a href="../../api/drasys/or/graph/vrp/ImproveWithTSP.html" TARGET="API">ImproveWithTSP</a>(new drasys.or.graph.tsp.<a href="../../api/drasys/or/graph/tsp/Us.html" TARGET="API">Us</a>(5));
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; vrp = new <a href="../../api/drasys/or/graph/vrp/Composite.html" TARGET="API">Composite</a>(construct, improve);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; vrp.<a href="../../api/drasys/or/graph/vrp/Composite.html#setCostConstraint(double)" TARGET="API">setCostConstraint</a>(rangeConstraint*1000);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; vrp.<a href="../../api/drasys/or/graph/vrp/Composite.html#setCapacityConstraint(double)" TARGET="API">setCapacityConstraint</a>(capacityConstraint);
+&nbsp;&nbsp;&nbsp; }</tt></pre>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="buildSolution"></a>Show - Build Solution</h2>
+The method 'buildSolution' creates the solution tours. There are three
+types of tours that 'buildSolution' can construct. If the tour type is
+'Closed' then 'buildSolution' will construct all the tours so that they
+begin and end at the depot. If the tour type is 'Outbound' then all the
+tours will start at the depot and end at arbitrary customers. If the tour
+type is 'Inbound' then all the tours will start at arbitrary customers
+and end at the depot.
+<pre><tt>&nbsp;&nbsp;&nbsp; public Vector[]
+&nbsp;&nbsp;&nbsp; buildSolution(GraphI graph)
+&nbsp;&nbsp;&nbsp; throws <a href="../../api/drasys/or/graph/VertexNotFoundException.html" TARGET="API">VertexNotFoundException</a>, <a href="../../api/drasys/or/graph/vrp/SolutionNotFoundException.html" TARGET="API">SolutionNotFoundException
+</a>&nbsp;&nbsp;&nbsp; {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; vrp.<a href="../../api/drasys/or/graph/vrp/Composite.html#setGraph(drasys.or.graph.GraphI)" TARGET="API">setGraph</a>(graph);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(tourType.equals("Closed"))&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; vrp.<a href="../../api/drasys/or/graph/vrp/Composite.html#constructClosedTours(java.lang.Object)" TARGET="API">constructClosedTours</a>("Depot");
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(tourType.equals("Inbound"))&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; vrp.<a href="../../api/drasys/or/graph/vrp/Composite.html#constructInboundTours(java.lang.Object)" TARGET="API">constructInboundTours</a>("Depot");
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; else if(tourType.equals("Outbound")){
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; vrp.<a href="../../api/drasys/or/graph/vrp/Composite.html#constructOutboundTours(java.lang.Object)" TARGET="API">constructOutboundTours</a>("Depot");
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
+&nbsp;&nbsp;&nbsp; return vrp.<a href="../../api/drasys/or/graph/vrp/Composite.html#getTours()" TARGET="API">getTours</a>();
+&nbsp;&nbsp;&nbsp; }</tt></pre>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="paintTours"></a>Show - Paint Tours</h2>
+After the solution is constructed it is painted onto the screen using 'paintTours'.
+The array argument 'tours' contains the Vector objects which hold the vehicle
+tours. There is one tour in each 'Vector' and the vector contains all the
+vertices and edges in the tour in order from the origin to the destination.&nbsp;
+If a tour is closed the first vertex will be repeated at the end of the
+vector.
+<pre><tt>&nbsp;&nbsp;&nbsp; public void
+&nbsp;&nbsp;&nbsp; paintTours(Vector[] tours)
+&nbsp;&nbsp;&nbsp; throws <a href="../../api/drasys/or/graph/vrp/SolutionNotFoundException.html" TARGET="API">SolutionNotFoundException
+</a>&nbsp;&nbsp;&nbsp; {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; int meters = 0;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Graphics g = this.getGraphics();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; g.setColor(Color.blue);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; for(int i=0; i&lt;tours.length; i++){
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Enumeration e=tours[i].elements();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; e.nextElement(); <font color="#009900">// Skip Vertex
+</font>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; while(e.hasMoreElements()){
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/graph/EdgeI.html" TARGET="API">EdgeI</a> edge = (EdgeI)e.nextElement();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="#customerClass">Customer</a> customer1 = (Customer)edge.<a href="../../api/drasys/or/graph/EdgeI.html#getFromVertex()" TARGET="API">getToVertex</a>().<a href="../../api/drasys/or/graph/VertexI.html#getValue()" TARGET="API">getValue</a>();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Customer customer2 = (Customer)edge.<a href="../../api/drasys/or/graph/EdgeI.html#getToVertex()" TARGET="API">getFromVertex</a>().getValue();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; meters += customer1.<a href="../../api/drasys/or/geom/rect2/Point.html#distanceTo(drasys.or.geom.rect2.PointI)" TARGET="API">distanceTo</a>(customer2);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; int x1 = (int)customer1.screenPoint.<a href="../../api/drasys/or/geom/rect2/Point.html#x()" TARGET="API">x</a>();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; int y1 = (int)customer1.screenPoint.<a href="../../api/drasys/or/geom/rect2/Point.html#y()" TARGET="API">y</a>();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; int x2 = (int)customer2.screenPoint.x();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; int y2 = (int)customer2.screenPoint.y();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; g.drawLine(x1, y1, x2, y2);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; e.nextElement(); <font color="#009900">// Skip Vertex
+</font>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; String msg = "Vehicles - "+tours.length+", ";
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; msg += "Distance(Km) - "+meters/1000;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; messageLabel.setText(msg);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; }</tt></pre>
+
+<hr SIZE=5 WIDTH="100%">
+<center><table>
+<tr>
+<td VALIGN=TOP><a href="http://www.amazon.com/exec/obidos/redirect-home/opsresearchcomA" TARGET="amazon.com"><img SRC="readmore.gif" ALT="In Association with Amazon.com" BORDER=0 ></a></td>
+
+<td>
+<center><form METHOD="get" ACTION="http://www.amazon.com/exec/obidos/external-search/"  TARGET="amazon.com"></center>
+
+<center><table BORDER CELLSPACING=0 CELLPADDING=5 BGCOLOR="#FFFFFF" >
+<tr>
+<td ALIGN=CENTER VALIGN=TOP><input TYPE= "text" NAME="keyword" SIZE=20 VALUE=" "><input TYPE= "hidden" NAME="tag" VALUE="opsresearchcomA"><input TYPE="submit" VALUE="Search" >
+<br><a href="http://www.amazon.com/exec/obidos/redirect-home/opsresearchcomA" TARGET="amazon.com"><img SRC="logo-plain.gif" VSPACE=2 BORDER=0 ></a></td>
+</tr>
+</table></center>
+</form></td>
+
+<td VALIGN=TOP><a href="http://www.amazon.com/exec/obidos/redirect-home/opsresearchcomA" TARGET="amazon.com"><img SRC="readmore.gif" ALT="In Association with Amazon.com" BORDER=0 ></a></td>
+</tr>
+</table></center>
+<font size=-1><a href="../copyright.html">Copyright (C) 1997-2000 by DRA
+Systems all rights reserved.</a></font><img SRC="../../../cgi/log.cgi?O-Tutorial-6" NOSAVE height=1 width=1>
+<br>&nbsp;
+<br>&nbsp;
+<br>&nbsp;
+<br>&nbsp;
+<br>&nbsp;
+<br>&nbsp;
+</body>
+</html>

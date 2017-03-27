@@ -1,0 +1,480 @@
+/*
+A basic extension of the java.applet.Applet class
+*/
+
+import java.awt.*;
+import java.applet.*;
+import java.util.*;
+
+import drasys.or.prob.*;
+import drasys.or.graph.*;
+import drasys.or.graph.sp.*;
+import drasys.or.graph.tsp.*;
+
+class Node
+{
+    int x, y;
+
+    Node(int X, int Y)
+    {
+        x = X;
+        y = Y;
+    }
+}
+
+class Street
+{
+    double speed;
+    double length;
+
+    Street(double len, double spd)
+    {
+        speed = spd;
+        length = len;
+    }
+}
+
+class SpProperties
+extends PropertiesAdapter
+{
+    public double
+    getEdgeCost(EdgeI edge, boolean reverse)
+    {
+        Street street = (Street)edge.getValue();
+        return (street.length/street.speed) * 60;
+    }
+
+    public double
+    getVertexCost(VertexI v)
+    {
+        if("S1E3".equals(v.getKey())) return 1.0;
+        if("N3E2".equals(v.getKey())) return 1.0;
+        return 0.0;
+    }
+
+    public boolean
+    isConnectionRestricted(EdgeI in, VertexI v, EdgeI out)
+    {
+        if(in == out) return true; // No u-turns
+
+        Object inKey = in.getKey();
+        Object outKey = out.getKey();
+        if("N1".equals(inKey) && "E1".equals(outKey)) return true;
+        if("N2".equals(inKey) && "E1".equals(outKey)) return true;
+        return false;
+    }
+}
+
+public class Tutorial_5 extends Applet {
+	void daysChoice_Action(Event event) {
+        reset(numberVisited, new Integer(daysChoice.getSelectedItem()).intValue());
+	}
+
+	void numberChoice_Action(Event event) {
+        reset( new Integer(numberChoice.getSelectedItem()).intValue(), numberDays);
+	}
+
+	void runButton_Clicked(Event event) {
+        run();
+    }
+
+	void stepButton_Clicked(Event event) {
+        singleStep();
+	}
+
+	void resetButton_Clicked(Event event) {
+        reset(numberVisited, numberDays);
+	}
+
+    public void
+    update(Graphics g)
+    {
+        paint(g);
+    }
+
+    public void
+    paint(Graphics g)
+    {
+        if(buffer != null) g.drawImage(buffer,0,0,this);
+        else if(image != null) g.drawImage(image,0,0,this);
+    }
+
+    public void
+    reset(int nVisited, int nDays)
+    {
+        tour = null;
+        dayCount = 0;
+        totalTime = 0.0;
+        currentTime = 0.0;
+        numberVisited = nVisited;
+        numberDays = nDays;
+        poisson = new PoissonDistribution(numberVisited);
+        uniform = new DiscreteUniformDistribution(0,1,10);
+        update(this.getGraphics());
+        tourLabel.setText("");
+        showTime();
+    }
+
+    public void
+    singleStep()
+    {
+        if(dayCount >= numberDays) return;
+        simulateOneDay();
+        showTime();
+    }
+
+    public void
+    run()
+    {
+        while(dayCount < numberDays)
+            simulateOneDay();
+        showTime();
+    }
+
+    public void
+    simulateOneDay()
+    {
+        try{
+            boolean[] used = new boolean[10];
+            String[] customers = {"A","B","C","D","E","F","G","H","I","J"};
+
+            tsp.selectVertex(false);
+            tsp.selectVertex("Depot", true);
+
+            int n = poisson.getRandomInteger();
+            if(n < 1) n = 1;
+            if(n > 8) n = 8;
+            for(int i=0; i<n; i++){
+                int idx = uniform.getRandomInteger();
+                while(used[idx]) idx = uniform.getRandomInteger();
+                used[idx] = true;
+                String customer = customers[idx];
+                tsp.selectVertex(customer, true);
+            }
+
+            totalTime += currentTime = tsp.constructClosedTour();
+            tour = tsp.getTour();
+            tour = tsp.rotateClosedTour(tour, "Depot");
+            showTourBuffered(tour);
+            dayCount++;
+        }
+        catch(TourNotFoundException e){}
+        catch(VertexNotFoundException e){}
+    }
+
+    public void
+    showPath(Graphics g, VertexI from, VertexI to)
+    {
+        try{
+            singleVertexAlgorithm.setCandidate(false);
+            singleVertexAlgorithm.setCandidate(to.getKey(), true);
+            singleVertexAlgorithm.generatePathsFrom(from.getKey());
+            VertexI pathTo = singleVertexAlgorithm.getNearestCandidate();
+            Enumeration path = singleVertexAlgorithm.pathElements(pathTo);
+            VertexI vertex = (VertexI)path.nextElement();
+            Node node1 = (Node)vertex.getValue();
+            while(path.hasMoreElements()){
+                path.nextElement();// Remove Edge
+                vertex  = (VertexI)path.nextElement();
+                Node node2 = (Node)vertex.getValue();
+                g.drawLine(node1.x, node1.y, node2.x, node2.y);
+                node1 = node2;
+            }
+        }
+        catch(VertexNotFoundException e){}
+        catch(InvalidPropertyException e){}
+    }
+    
+    public void
+    showTourBuffered(Vector tour)
+    {
+        if(buffer == null){
+            Dimension d = new Dimension(image.getWidth(null), image.getHeight(null));
+            //Dimension d = this.size();
+            buffer = this.createImage(d.width,d.height);
+        }
+        
+        Graphics g = buffer.getGraphics();
+        if(image != null) g.drawImage(image,0,0,this);
+        showTour(g, tour);
+        update(this.getGraphics());
+    }
+
+    public void
+    showTour(Graphics g, Vector tour)
+    {
+        String str = "";
+        g.setColor(Color.white);
+        Enumeration e=tour.elements();
+        if(!e.hasMoreElements()) return;
+        VertexI from = (VertexI)e.nextElement();
+        str += from.getKey();
+        while(e.hasMoreElements()){
+            e.nextElement(); //Remove Edge
+            VertexI to = (VertexI)e.nextElement();
+            str += ", " + to.getKey();        
+            showPath(g, from, to);
+            from = to;
+        }
+        tourLabel.setText(str);
+    }
+
+    public void
+    showTime()
+    {
+        String current = "" + (int)(currentTime+0.5) + " minutes";
+        currentTextField.setText(current);
+
+        String average;
+        if(dayCount < 1)
+            average = "0 minutes";
+        else
+            average = "" + (int)(totalTime/dayCount+0.5) + " minutes";
+        averageTextField.setText(average);
+    }
+
+    int numberVisited, numberDays, dayCount;
+    Image image, buffer;
+    Vector tour;
+    double totalTime, currentTime;
+    SparseGraph  graph;
+    SingleVertexI singleVertexAlgorithm;
+    DiscreteDistributionI poisson, uniform;
+    ConstructI tsp;
+    
+    public void
+    initTutorial()
+    {
+        try{
+            graph = new SparseGraph();
+            image = this.getImage(this.getDocumentBase(), "Tutorial_5.gif");
+            buildGraph();
+            singleVertexAlgorithm = new Connections(graph);
+
+
+            String[] keys = {"A","B","C","D","E","F","G","H","I","J","Depot"};
+            AllPairsI allPairsAlgorithm = new Iterate(graph, singleVertexAlgorithm);
+            allPairsAlgorithm.setProperties(new SpProperties());
+            allPairsAlgorithm.setOrigin(false);
+            allPairsAlgorithm.setDestination(false);
+            for(int i=0; i<keys.length; i++){
+                allPairsAlgorithm.setOrigin(keys[i], true);
+                allPairsAlgorithm.setDestination(keys[i], true);
+            }
+
+            
+            AddI travelGraph = new SparseGraph();
+            allPairsAlgorithm.fillGraph(travelGraph);
+            tsp = new FullEnumeration(travelGraph);
+
+            reset(3,5);
+        }
+        catch(VertexNotFoundException e){}
+        catch(InvalidPropertyException e){}
+        catch(DuplicateEdgeException e){}
+        catch(DuplicateVertexException e){}
+        
+    }
+
+	public void init() {
+        super.init();
+		//{{INIT_CONTROLS
+		setLayout(null);
+		setBackground(java.awt.Color.lightGray);
+		setSize(250,380);
+		runButton.setLabel("Run");
+		add(runButton);
+		runButton.setBounds(168,346,72,24);
+		stepButton.setLabel("Single Step");
+		add(stepButton);
+		stepButton.setBounds(90,346,72,24);
+		resetButton.setLabel("Reset");
+		add(resetButton);
+		resetButton.setBounds(12,346,72,24);
+		label1.setText("Average number visited");
+		label1.setAlignment(java.awt.Label.CENTER);
+		add(label1);
+		label1.setBounds(12,286,168,24);
+		numberChoice.addItem("3");
+		numberChoice.addItem("4");
+		numberChoice.addItem("5");
+		numberChoice.addItem("6");
+		try {
+			numberChoice.select(0);
+		}
+		catch (IllegalArgumentException e) { }
+		add(numberChoice);
+		numberChoice.setBounds(180,286,48,21);
+		label2.setText("Number of days to simulate");
+		label2.setAlignment(java.awt.Label.CENTER);
+		add(label2);
+		label2.setBounds(12,310,168,24);
+		daysChoice.addItem("5");
+		daysChoice.addItem("10");
+		daysChoice.addItem("20");
+		daysChoice.addItem("50");
+		daysChoice.addItem("100");
+		try {
+			daysChoice.select(0);
+		}
+		catch (IllegalArgumentException e) { }
+		add(daysChoice);
+		daysChoice.setBounds(180,310,48,21);
+		msgLabel1.setText("Current Time");
+		msgLabel1.setAlignment(java.awt.Label.CENTER);
+		add(msgLabel1);
+		msgLabel1.setBounds(12,228,108,24);
+		msgLabel2.setText("Average Time");
+		msgLabel2.setAlignment(java.awt.Label.CENTER);
+		add(msgLabel2);
+		msgLabel2.setBounds(132,228,108,24);
+		add(currentTextField);
+		currentTextField.setBounds(24,252,84,24);
+		add(averageTextField);
+		averageTextField.setBounds(144,252,84,24);
+		tourLabel.setAlignment(java.awt.Label.CENTER);
+		add(tourLabel);
+		tourLabel.setBounds(24,204,204,12);
+		//}}
+
+        buffer = null;
+		initTutorial();
+	}
+
+	public boolean handleEvent(Event event) {
+		if (event.target == resetButton && event.id == Event.ACTION_EVENT) {
+			resetButton_Clicked(event);
+			return true;
+		}
+		if (event.target == stepButton && event.id == Event.ACTION_EVENT) {
+			stepButton_Clicked(event);
+			return true;
+		}
+		if (event.target == runButton && event.id == Event.ACTION_EVENT) {
+			runButton_Clicked(event);
+			return true;
+		}
+		if (event.target == numberChoice && event.id == Event.ACTION_EVENT) {
+			numberChoice_Action(event);
+			return true;
+		}
+		if (event.target == daysChoice && event.id == Event.ACTION_EVENT) {
+			daysChoice_Action(event);
+			return true;
+		}
+		return super.handleEvent(event);
+	}
+
+	//{{DECLARE_CONTROLS
+	java.awt.Button runButton = new java.awt.Button();
+	java.awt.Button stepButton = new java.awt.Button();
+	java.awt.Button resetButton = new java.awt.Button();
+	java.awt.Label label1 = new java.awt.Label();
+	java.awt.Choice numberChoice = new java.awt.Choice();
+	java.awt.Label label2 = new java.awt.Label();
+	java.awt.Choice daysChoice = new java.awt.Choice();
+	java.awt.Label msgLabel1 = new java.awt.Label();
+	java.awt.Label msgLabel2 = new java.awt.Label();
+	java.awt.TextField currentTextField = new java.awt.TextField();
+	java.awt.TextField averageTextField = new java.awt.TextField();
+	java.awt.Label tourLabel = new java.awt.Label();
+	//}}
+
+    private void
+    buildGraph()
+    {
+        try {
+
+        // Add Intersections //
+        graph.addVertex("N1E1", new Node( 44,  37));
+        graph.addVertex("N1E2", new Node( 44,  79));
+        graph.addVertex("N1E3", new Node( 44, 115));
+        graph.addVertex("N1E4", new Node( 44, 148));
+        graph.addVertex("N2E1", new Node(119,  37));
+        graph.addVertex("N2E2", new Node(119,  79));
+        graph.addVertex("N2W1", new Node(119, 102));
+        graph.addVertex("N3E1", new Node(149,  37));
+        graph.addVertex("N3E2", new Node(149,  79));
+        graph.addVertex("N3W1", new Node(149, 102));
+        graph.addVertex("N4E1", new Node(183,  37));
+        graph.addVertex("N4E2", new Node(183,  79));
+        graph.addVertex("N4W1", new Node(183, 102));
+        graph.addVertex("N4E4", new Node(183, 148));
+        graph.addVertex("N5E1", new Node(208,  37));
+        graph.addVertex("N5E2", new Node(208,  79));
+        graph.addVertex("S1E3", new Node( 79, 115));
+        graph.addVertex("S1E4", new Node( 79, 148));
+        graph.addVertex("S2E3", new Node(102, 115));
+        graph.addVertex("S2E4", new Node(102, 148));
+
+        // Add Customers //
+        graph.addVertex("A",    new Node(135,  37));
+        graph.addVertex("B",    new Node(166,  79));
+        graph.addVertex("C",    new Node(208,  54));
+        graph.addVertex("D",    new Node( 60, 115));
+        graph.addVertex("E",    new Node(163, 148));
+        graph.addVertex("F",    new Node(102, 131));
+        graph.addVertex("G",    new Node( 79,  37));
+        graph.addVertex("H",    new Node(203, 102));
+        graph.addVertex("I",    new Node(183,  54));
+        graph.addVertex("J",    new Node( 79, 133));
+
+        // Add Depot //
+        graph.addVertex("Depot", new Node( 79,  79));
+
+        // Add oneway street
+        graph.addEdge("N2W1","N3W1",new Street(1.0,30),true);
+
+        // Add Right Turn Restricted Edges
+        graph.addEdge("N1E1","G",new Street(0.5,30),false,"E1");
+        graph.addEdge("N1E1","N1E2",new Street(1.0,30),false,"N1");
+
+        // Add Left Turn Restricted Edges
+        graph.addEdge("G","N2E1",new Street(0.5,30),false,"E1");
+        graph.addEdge("N2E1","N2E2",new Street(1.0,30),false,"N2");
+
+        // Add Other Edges //
+        graph.addEdge("N1E2","Depot",new Street(0.5,20));
+        graph.addEdge("Depot","N2E2",new Street(0.5,20));
+        graph.addEdge("N2E1","A",new Street(0.5,20));
+        graph.addEdge("A","N3E1",new Street(0.5,20));
+        graph.addEdge("N3E2","B",new Street(0.5,20));
+        graph.addEdge("B","N4E2",new Street(0.5,20));
+        graph.addEdge("N5E1","C",new Street(0.5,20));
+        graph.addEdge("C","N5E2",new Street(0.5,20));
+        graph.addEdge("N1E3","D",new Street(0.5,20));
+        graph.addEdge("D","S1E3",new Street(0.5,20));
+        graph.addEdge("S2E4","E",new Street(0.6,20));
+        graph.addEdge("E","N4E4",new Street(0.4,20));
+        graph.addEdge("S2E3","F",new Street(0.5,20));
+        graph.addEdge("F","S2E4",new Street(0.5,20));
+        graph.addEdge("N4W1","H",new Street(0.5,20));
+        graph.addEdge("N4E1","I",new Street(0.5,20));
+        graph.addEdge("I","N4E2",new Street(0.5,20));
+        graph.addEdge("S1E3","J",new Street(0.5,20));
+        graph.addEdge("J","S1E4",new Street(0.5,20));
+        graph.addEdge("N3E1","N4E1",new Street(1.0,20));
+        graph.addEdge("N4E1","N5E1",new Street(1.0,20));
+        graph.addEdge("N2E2","N3E2",new Street(1.0,20));
+        graph.addEdge("N4E2","N5E2",new Street(1.0,20));
+        graph.addEdge("N3W1","N4W1",new Street(1.0,20));
+        graph.addEdge("S1E3","S2E3",new Street(1.0,20));
+        graph.addEdge("N1E4","S1E4",new Street(1.0,20));
+        graph.addEdge("S1E4","S2E4",new Street(1.0,20));
+        graph.addEdge("N1E2","N1E3",new Street(1.0,20));
+        graph.addEdge("N1E3","N1E4",new Street(1.0,20));
+        graph.addEdge("N2E2","N2W1",new Street(1.0,20));
+        graph.addEdge("N3E1","N3E2",new Street(1.0,20));
+        graph.addEdge("N3E2","N3W1",new Street(1.0,20));
+        graph.addEdge("N4E1","N4E2",new Street(1.0,20));
+        graph.addEdge("N4E2","N4W1",new Street(1.0,20));
+        graph.addEdge("N4W1","N4E4",new Street(1.0,20));
+        graph.addEdge("N5E1","N5E2",new Street(1.0,20));
+
+        }
+        catch(DuplicateEdgeException e){}
+        catch(VertexNotFoundException e){}
+        catch(DuplicateVertexException e){}
+    }
+
+}

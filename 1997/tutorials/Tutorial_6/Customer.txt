@@ -1,0 +1,20 @@
+
+import drasys.or.*;
+import drasys.or.geom.rect2.*;
+
+class Customer
+extends Point
+implements DoubleI
+{
+    double load;
+    PointI screenPoint;
+
+    Customer(double ld, PointI projectedPt, PointI screenPt)
+    {
+        super(projectedPt);
+        load = ld;
+        screenPoint = screenPt;
+    }
+    
+    public double doubleValue(){return load;}
+}

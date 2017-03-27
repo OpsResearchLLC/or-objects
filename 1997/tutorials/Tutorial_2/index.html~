@@ -1,0 +1,442 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="Author" content="DRA Systems">
+   <meta name="GENERATOR" content="Mozilla/4.61 [en] (WinNT; I) [Netscape]">
+   <title>OR-Objects Tutorial 2</title>
+</head>
+<body background="../../../Images/paper.gif" nosave>
+&nbsp;
+<table CELLSPACING=4 >
+<tr>
+<td><a href="http://OpsResearch.com" target="_parent">Home</a></td>
+
+<td><a href="../../index.html">OR-Objects</a></td>
+
+<td><a href="../index.html">Tutorials</a></td>
+
+<td><a href="../Tutorial_1/index.html">Prev</a></td>
+
+<td><a href="../Tutorial_3/index.html">Next</a></td>
+</tr>
+</table>
+
+<center>
+<h1>
+Tutorial 2 - Nearest Customers</h1></center>
+
+<center>
+<p><br><applet ARCHIVE="../or.jar" CODE="Tutorial_2.class"  WIDTH=250 HEIGHT=315></applet></center>
+
+<p>In this tutorial you will build on what you learned in <a href="../Tutorial_1/index.html">Tutorial-1</a>
+and use OR-Objects to construct a street network like the one above. Then
+you will customize a shortest path algorithm and use it to find customers
+nearest to the&nbsp;<img SRC="depot.gif" NOSAVE height=14 width=39>. The
+customers are labeled '<font color="#FF0000">A</font>' through '<font color="#FF0000">J</font>'
+and the nearness of a customer is measured by travel time. The&nbsp;<img SRC="tl.gif" NOSAVE height=11 width=5>
+symbols are traffic lights which require one minute to cross. The 'L' and
+'R' mark corners where left and right turns are not allowed.
+<p>For simplicity, some of the applet details will be skipped. If you would
+like all the details then view the <a href="Tutorial_2.txt">complete source</a>.
+<p>
+<hr WIDTH="100%">
+<h2>
+Tutorial 2 - Contents</h2>
+
+<ul>
+<li>
+<a href="#streetNetwork">Street Network</a></li>
+
+<ul>
+<li>
+<a href="#classesStreet">Street Class</a></li>
+
+<li>
+<a href="#classesNode">Node Class</a></li>
+
+<li>
+<a href="#buildGraph">Build Graph</a></li>
+</ul>
+
+<li>
+<a href="#algorithm">Algorithm</a></li>
+
+<ul>
+<li>
+<a href="#classesProperties">Properties Class</a></li>
+
+<li>
+<a href="#initializeAlgorithm">Initialization</a></li>
+</ul>
+
+<li>
+<a href="#generateSinglePath">Generate</a></li>
+
+<ul>
+<li>
+<a href="#generateSinglePath">Single Path</a></li>
+
+<li>
+<a href="#genaretaMultiplePaths">Multiple Paths</a></li>
+</ul>
+
+<li>
+<a href="#drawAllPaths">Draw</a></li>
+
+<ul>
+<li>
+<a href="#drawPaths">All Paths</a></li>
+
+<li>
+<a href="#drawPath">Path</a></li>
+</ul>
+</ul>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="streetNetwork"></a>Street Network</h2>
+The street network is stored in a <a href="../../api/drasys/or/graph/SparseGraph.html" TARGET="API">SparseGraph</a>
+and the classes <a href="#classesStreet">Street</a> and <a href="#classesNode">Node</a>
+are used as the edge and vertex values respectively.
+<p><tt>&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/graph/SparseGraph.html" TARGET="API">SparseGraph</a>
+graph;</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; .............</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; graph = new <a href="../../api/drasys/or/graph/SparseGraph.html#SparseGraph()" TARGET="API">SparseGraph</a>();</tt>
+<p>
+<hr WIDTH="100%">
+<h2>
+<a NAME="classesStreet"></a>Street Network - Street Class</h2>
+This class is used as the value for all edges. It contains the length and
+average speed for a section of street. The speed and length will be used
+together to compute the time to traverse the section, which is the cost
+that the algorithm will minimize.
+<ul>
+<pre><tt>class Street
+{
+&nbsp;&nbsp;&nbsp; double speed;
+&nbsp;&nbsp;&nbsp; double length;
+
+&nbsp;&nbsp;&nbsp; Street(double len, double spd)
+&nbsp;&nbsp;&nbsp; {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; speed = spd;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; length = len;
+&nbsp;&nbsp;&nbsp; }
+}</tt></pre>
+</ul>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="classesNode"></a>Street Network - Node Class</h2>
+This class is used as the value for all vertices. It contains the coordinates
+that are used to draw the paths.
+<ul><tt>class Node</tt>
+<br><tt>{</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; int x, y;</tt>
+<p><tt>&nbsp;&nbsp;&nbsp; Node(int X, int Y)</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; {</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; x = X;</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; y = Y;</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; }</tt>
+<br><tt>}</tt></ul>
+
+<h2>
+
+<hr WIDTH="100%"></h2>
+
+<h2>
+<a NAME="buildGraph"></a>Street Network - Build Graph</h2>
+This method constructs the graph that represents the street network. This
+first portion adds the vertices for the intersections, customers and the
+depot.
+<p><tt>&nbsp;&nbsp;&nbsp; private void</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; buildGraph()</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; {</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; try {</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // Add Intersections
+//</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.<a href="../../api/drasys/or/graph/AddVertexI.html#addVertex(java.lang.Object, java.lang.Object)" TARGET="API">addVertex</a>("N1E1",
+new <a href="#classesNode">Node</a>( 44,&nbsp; 37));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addVertex("N1E2",
+new Node( 44,&nbsp; 79));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ............................................</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addVertex("S2E3",
+new Node(102, 115));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addVertex("S2E4",
+new Node(102, 148));</tt>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // Add Customers //</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addVertex("A",&nbsp;&nbsp;&nbsp;
+new Node(135,&nbsp; 37));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addVertex("B",&nbsp;&nbsp;&nbsp;
+new Node(166,&nbsp; 79));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ............................................</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addVertex("I",&nbsp;&nbsp;&nbsp;
+new Node(183,&nbsp; 54));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addVertex("J",&nbsp;&nbsp;&nbsp;
+new Node( 79, 133));</tt>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // Add Depot //</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addVertex("Depot",
+new Node( 79,&nbsp; 79));</tt>
+<p>The next step is to add the edges. Notice that the edges adjacent to
+the restricted right and left turns use the street name as a key. These
+names are used&nbsp; in Properties.<a href="#isConnectioRestricted">isConnectionRestricted</a>
+to prevent wrong turns. The one-way street is added as a directed edge.
+<p>&nbsp;<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // Add one-way
+street section</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.<a href="../../api/drasys/or/graph/AddEdgeI.html#addEdge(java.lang.Object, java.lang.Object, java.lang.Object, boolean)" TARGET="API">addEdge</a>("N2W1","N3W1",new
+<a href="#classesStreet">Street</a>(1.0,20),true);</tt>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // Add Right Turn Restricted
+Edges</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.<a href="../../api/drasys/or/graph/AddEdgeI.html#addEdge(java.lang.Object, java.lang.Object, java.lang.Object, boolean, java.lang.Object)" TARGET="API">addEdge</a>("N1E1","G",new
+Street(0.5,20),false,"E1");</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addEdge("N1E1","N1E2",new
+Street(1.0,20),false,"N1");</tt>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // Add Left Turn Restricted
+Edges</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addEdge("G","N2E1",new
+Street(0.5,20),false,"E1");</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addEdge("N2E1","N2E2",new
+Street(1.0,20),false,"N2");</tt>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // Add Other Edges //</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.<a href="../../api/drasys/or/graph/AddEdgeI.html#addEdge(java.lang.Object, java.lang.Object, java.lang.Object, boolean)" TARGET="API">addEdge</a>("N1E2","Depot",new
+Street(0.5,20));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addEdge("Depot","N2E2",new
+Street(0.5,20));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addEdge("N2E1","A",new
+Street(0.5,20));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addEdge("A","N3E1",new
+Street(0.5,20));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ................................................</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addEdge("N3E1","N4E1",new
+Street(1.0,20));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; graph.addEdge("N4E1","N5E1",new
+Street(1.0,20));</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ................................................</tt>
+<br>&nbsp;
+<h2>
+
+<hr WIDTH="100%"></h2>
+
+<h2>
+<a NAME="algorithm"></a>Algorithm</h2>
+This tutorial uses the <tt><a href="../../api/drasys/or/graph/sp/Connections.html" TARGET="API">Connections</a></tt>
+algorithm because it uses the connection restriction and cost properties.
+If the street network didn't have turn restrictions then the <tt><a href="../../api/drasys/or/graph/sp/Dijkstra.html" TARGET="API">Dijkstra</a></tt>
+algorithm would be a better choice since it is more efficient.
+<p>
+<hr WIDTH="100%">
+<h2>
+<a NAME="classesProperties"></a>Algorithm - Properties Class</h2>
+This class is used to customized the properties the algorithm uses to generate
+the paths. The algorithm calls <tt><a href="../../api/drasys/or/graph/EdgePropertiesI.html#getEdgeCost(drasys.or.graph.EdgeI, boolean)" TARGET="API">getEdgeCost</a></tt>
+to obtain the cost of traversing an edge. Since we want to minimize the
+path travel time, this returns the time to traverse the street section
+in minutes.
+<ul>
+<pre><tt>class Properties
+extends <a href="../../api/drasys/or/graph/sp/PropertiesAdapter.html" TARGET="API">PropertiesAdapter
+</a>{
+&nbsp;&nbsp;&nbsp; public double
+&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/graph/EdgePropertiesI.html#getEdgeCost(drasys.or.graph.EdgeI, boolean)" TARGET="API">getEdgeCost</a>(<a href="../../api/drasys/or/graph/EdgeI.html" TARGET="API">EdgeI</a> edge, boolean reverse)
+&nbsp;&nbsp;&nbsp; {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="#classesStreet">Street</a> street = (Street)edge.<a href="../../api/drasys/or/graph/EdgeI.html#getValue()" TARGET="API">getValue</a>();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; return (street.length/street.speed) * 60.0;
+&nbsp;&nbsp;&nbsp; }</tt></pre>
+</ul>
+The algorithm calls <tt><a href="../../api/drasys/or/graph/VertexPropertiesI.html#getVertexCost(drasys.or.graph.VertexI)" TARGET="API">getVertexCost</a></tt>
+to obtain the cost of crossing a vertex. In this tutorial the cost of crossing
+a traffic light is one minute and zero for all other vertices.
+<ul><tt>&nbsp;&nbsp;&nbsp; public double</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/graph/VertexPropertiesI.html#getVertexCost(drasys.or.graph.VertexI)" TARGET="API">getVertexCost</a>(<a href="../../api/drasys/or/graph/VertexI.html" TARGET="API">VertexI</a>
+v)</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; {</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if("S1E3".equals(v.<a href="../../api/drasys/or/graph/VertexI.html#getKey()" TARGET="API">getKey</a>()))
+return 1.0;</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if("N3E2".equals(v.getKey()))
+return 1.0;</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; return 0.0;</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; }</tt></ul>
+<a NAME="isConnectioRestricted"></a>The method 'isConnectionRestricted'
+implements the left and right turn restrictions. It also prevents u-turns.
+<ul><tt>&nbsp;&nbsp;&nbsp; public boolean</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; <a href="../../api/drasys/or/graph/sp/PropertiesI.html#isConnectionRestricted(drasys.or.graph.EdgeI, drasys.or.graph.VertexI, drasys.or.graph.EdgeI)" TARGET="API">isConnectionRestricted</a>(<a href="../../api/drasys/or/graph/EdgeI.html" TARGET="API">EdgeI</a>
+in, <a href="../../api/drasys/or/graph/VertexI.html" TARGET="API">VertexI</a>
+v, EdgeI out)</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; {</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(in == out) return
+true; // No u-turns</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Object inKey = in.<a href="../../api/drasys/or/graph/EdgeI.html#getKey()" TARGET="API">getKey</a>();</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Object outKey = out.getKey();</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if("N1".equals(inKey)
+&amp;&amp; "E1".equals(outKey)) return true;</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if("N2".equals(inKey)
+&amp;&amp; "E1".equals(outKey)) return true;</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; return false;</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; }</tt>
+<br><tt>}</tt></ul>
+
+<hr WIDTH="100%">
+<h2>
+<a NAME="initializeAlgorithm"></a>Algorithm - Initialization</h2>
+After the graph is built a new shortest path algorithm is constructed on
+the graph. The call to&nbsp; <tt><a href="../../api/drasys/or/graph/sp/SingleVertexI.html#setProperties(drasys.or.graph.sp.PropertiesI)" TARGET="API">setProperties</a></tt>
+customizes the algorithmto use the vertex and edges values.
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="#buildGraph">buildGraph</a>();</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; algorithm = new <a href="../../api/drasys/or/graph/sp/Connections.html" TARGET="API">Connections</a>(graph);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#setProperties(drasys.or.graph.sp.PropertiesI)" TARGET="API">setProperties</a>(new
+<a href="#classesProperties">Properties</a>());</tt>
+<p>
+<hr WIDTH="100%">
+<h2>
+<a NAME="generateSinglePath"></a>Generate - Single Path</h2>
+This method generates and draws the path from src to dst. First it clears
+all the candidates and sets the destination as a candidate. It then generates
+the path from the source vertex and calls <tt><a href="#drawAllPaths">drawAllPaths</a></tt>
+to display the path.
+<p><tt>&nbsp;&nbsp;&nbsp; public void</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; generateSinglePath(Object src, Object dst)</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; {</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; try{</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#setCandidate(boolean)" TARGET="API">setCandidate</a>(false);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#setCandidate(java.lang.Object, boolean)" TARGET="API">setCandidate</a>(dst,
+true);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#generatePathsFrom(java.lang.Object)" TARGET="API">generatePathsFrom</a>(src);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; catch(<a href="../../api/drasys/or/graph/VertexNotFoundException.html" TARGET="API">VertexNotFoundException</a>
+e){}</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; catch(<a href="../../api/drasys/or/graph/sp/InvalidPropertyException.html" TARGET="API">InvalidPropertyException</a>
+e){}</tt>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="#drawAllPaths">drawAllPaths</a>(algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#candidates()" TARGET="API">candidates</a>());</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; }</tt>
+<p>
+<hr WIDTH="100%">
+<h2>
+<a NAME="genaretaMultiplePaths"></a>Generate - Multiple Paths</h2>
+This method generates and draws the paths beginning at the depot and ending
+at the candidates. First it selects all the customers as candidates and
+sets the maximum number of paths to generate. Then it creates the paths
+either from or to the depot and calls <tt><a href="#drawAllPaths">drawAllPaths</a></tt>
+with an enumeration on the candidates to display them.
+<p><tt>&nbsp;&nbsp;&nbsp; public void</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; generateMultiplePaths(int n, boolean isFrom)</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; {</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; try{</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#setCandidate(boolean)" TARGET="API">setCandidate</a>(false);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#setCandidate(java.lang.Object, boolean)" TARGET="API">setCandidate</a>("A",
+true);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.setCandidate("B", true);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+..................................</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.setCandidate("I", true);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.setCandidate("J", true);</tt>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#setMaxPaths(int)" TARGET="API">setMaxPaths</a>(n);</tt>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+if(isFrom)</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#generatePathsFrom(java.lang.Object)" TARGET="API">generatePathsFrom</a>("Depot");</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+else</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#generatePathsTo(java.lang.Object)" TARGET="API">generatePathsTo</a>("Depot");</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; catch(<a href="../../api/drasys/or/graph/VertexNotFoundException.html" TARGET="API">VertexNotFoundException</a>
+e){}</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; catch(<a href="../../api/drasys/or/graph/sp/InvalidPropertyException.html" TARGET="API">InvalidPropertyException</a>
+e){}</tt>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="#drawAllPaths">drawAllPaths</a>(algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#candidates()" TARGET="API">candidates</a>());</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; }</tt>
+<p>
+<hr WIDTH="100%">
+<h2>
+<a NAME="drawAllPaths"></a>Draw - All Paths</h2>
+This method receives an enumeration on the candidates. It iterates through
+each candidate that has a path and calls <tt><a href="#drawPath">drawPath</a></tt>
+to display its path.
+<p>&nbsp;<tt>&nbsp;&nbsp; public void</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; drawAllPaths(Enumeration destinations)</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; {</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Graphics g = this.getGraphics();</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; paint(g);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; g.setColor(Color.white);</tt>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; try{</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+while(destinations.hasMoreElements()){</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
+<a href="../../api/drasys/or/graph/VertexI.html" TARGET="API">VertexI</a>
+dest = (VertexI)destinations.nextElement();</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
+<a href="#drawPath">drawPath</a>(g,
+dest);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+}</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; catch(<a href="../../api/drasys/or/graph/VertexNotFoundException.html" TARGET="API">VertexNotFoundException</a>){}</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; }</tt>
+<br>
+<hr WIDTH="100%">
+<h2>
+<a NAME="drawPath"></a>Draw - Path</h2>
+This method draws the path from a candidate to the root. It gets an Enumeration
+on the path elements from the algorithm and uses it to walk down the path
+drawing the edges.
+<p><tt>&nbsp;&nbsp;&nbsp; public void</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; drawPath(Graphics g, <a href="../../api/drasys/or/graph/VertexI.html" TARGET="API">VertexI</a>
+dest)</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; throws <a href="../../api/drasys/or/graph/VertexNotFoundException.html" TARGET="API">VertexNotFoundException</a></tt>
+<br><tt>&nbsp;&nbsp;&nbsp; {</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Enumeration path = algorithm.<a href="../../api/drasys/or/graph/sp/SingleVertexI.html#pathElements(drasys.or.graph.VertexI)" TARGET="API">pathElements</a>(dest);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; VertexI vertex = (VertexI)path.nextElement();</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <a href="#classesNode">Node</a>
+lastNode = (Node)vertex.<a href="../../api/drasys/or/graph/VertexI.html#getValue()" TARGET="API">getValue</a>();</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; while(path.hasMoreElements()){</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+path.nextElement(); // Remove Edge</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+vertex = (VertexI)path.nextElement();</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Node node = (Node)vertex.getValue();</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+g.drawLine(lastNode.x,lastNode.y,node.x,node.y);</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+lastNode = node;</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }</tt>
+<br><tt>&nbsp;&nbsp;&nbsp; }</tt>
+<p>
+<hr SIZE=5 WIDTH="100%">
+<center><table>
+<tr>
+<td VALIGN=TOP><a href="http://www.amazon.com/exec/obidos/redirect-home/opsresearchcomA" TARGET="amazon.com"><img SRC="readmore.gif" ALT="In Association with Amazon.com" BORDER=0 ></a></td>
+
+<td>
+<center><form METHOD="get" ACTION="http://www.amazon.com/exec/obidos/external-search/"  TARGET="amazon.com"></center>
+
+<center><table BORDER CELLSPACING=0 CELLPADDING=5 BGCOLOR="#FFFFFF" >
+<tr>
+<td ALIGN=CENTER VALIGN=TOP><input TYPE= "text" NAME="keyword" SIZE=20 VALUE=" "><input TYPE= "hidden" NAME="tag" VALUE="opsresearchcomA"><input TYPE="submit" VALUE="Search" >
+<br><a href="http://www.amazon.com/exec/obidos/redirect-home/opsresearchcomA" TARGET="amazon.com"><img SRC="logo-plain.gif" VSPACE=2 BORDER=0 ></a></td>
+</tr>
+</table></center>
+</form></td>
+
+<td VALIGN=TOP><a href="http://www.amazon.com/exec/obidos/redirect-home/opsresearchcomA" TARGET="amazon.com"><img SRC="readmore.gif" ALT="In Association with Amazon.com" BORDER=0 ></a></td>
+</tr>
+</table></center>
+<font size=-1><a href="../copyright.html">Copyright (C) 1997-2000 by DRA
+Systems all rights reserved.</a></font><img SRC="../../../cgi/log.cgi?O-Tutorial-2" NOSAVE height=1 width=1>
+<br>&nbsp;
+<br>&nbsp;
+<br>&nbsp;
+<br>&nbsp;
+<br>&nbsp;
+<br>&nbsp;
+</body>
+</html>
