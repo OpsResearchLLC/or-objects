@@ -1,5 +1,5 @@
 # or-objects
 OR-Objects is a class library of mathematical statistics and optimization algorithms.
 
-[API](http://opsresearch.com/1997/api/)
+[API](http://opsresearch.com/1997/api/)<br/>
 [Legacy Tutorials](http://opsresearch.com/1997/tutorials/)
